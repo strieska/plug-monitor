@@ -3,11 +3,15 @@ package main
 import (
 	"log"
 	"net/http"
+
+	"plug-monitor/internal"
 )
 
 func main() {
 
 	http.HandleFunc("/health", health)
+
+	http.HandleFunc("/power", internal.PowerHandler)
 
 	log.Println("plug-monitor starting on :8080")
 
