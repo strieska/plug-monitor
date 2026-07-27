@@ -9,9 +9,15 @@ import (
 
 func main() {
 
+	monitor := internal.NewMonitor()
+
+	handler := internal.NewHandler(monitor)
+
 	http.HandleFunc("/health", health)
 
-	http.HandleFunc("/power", internal.PowerHandler)
+	http.HandleFunc("/power", handler.Power)
+
+	http.HandleFunc("/status", handler.Status)
 
 	log.Println("plug-monitor starting on :8080")
 
