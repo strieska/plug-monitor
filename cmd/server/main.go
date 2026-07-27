@@ -9,9 +9,14 @@ import (
 
 func main() {
 
+	config := internal.LoadConfig()
+
 	monitor := internal.NewMonitor()
 
-	handler := internal.NewHandler(monitor)
+	handler := internal.NewHandler(
+		monitor,
+		config,
+	)
 
 	http.HandleFunc("/health", health)
 
