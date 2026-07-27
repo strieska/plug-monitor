@@ -35,49 +35,64 @@ func (h *Handler) Power(w http.ResponseWriter, r *http.Request) {
 
 	now := time.Now()
 
-	h.Monitor.mu.Lock()
-	defer h.Monitor.mu.Unlock()
+	shouldNotify := false
+	runningTime := time.Duration(0)
 
 	//
-	// Power is zero -> appliance stopped
+	// Only state manipulation happens inside the lock
 	//
+	h.Monitor.mu.Lock()
+
 	if request.Power <= 0 {
 
+		// Appliance stopped
 		h.Monitor.State.Running = false
 		h.Monitor.State.StartTime = time.Time{}
 		h.Monitor.State.Notified = false
 
 	} else {
 
-		//
-		// First time seeing power -> start tracking
-		//
+		// First time seeing power
 		if !h.Monitor.State.Running {
 
 			h.Monitor.State.Running = true
 			h.Monitor.State.StartTime = now
 			h.Monitor.State.Notified = false
-
 		}
 
-		//
-		// Still running -> check timeout
-		//
+		// Check if running too long
 		if h.Monitor.State.Running &&
-			!h.Monitor.State.Notified &&
-			now.Sub(h.Monitor.State.StartTime) >= h.Config.Threshold {
+			!h.Monitor.State.Notified {
 
-			h.Monitor.State.Notified = true
+			runningTime = now.Sub(h.Monitor.State.StartTime)
 
-			// TODO:
-			// Send Home Assistant notification webhook here
+			if runningTime >= h.Config.Threshold {
 
+				h.Monitor.State.Notified = true
+				shouldNotify = true
+			}
 		}
+	}
+
+	currentState := h.Monitor.State
+
+	h.Monitor.mu.Unlock()
+
+	//
+	// External calls happen AFTER unlocking
+	//
+	if shouldNotify {
+
+		go NotifyHA(
+			h.Config.Webhook,
+			runningTime,
+		)
+
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 
-	json.NewEncoder(w).Encode(h.Monitor.State)
+	json.NewEncoder(w).Encode(currentState)
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
