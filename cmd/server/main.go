@@ -35,7 +35,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":8080",
-		Handler:           mux,
+		Handler:           internal.Logging(mux),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

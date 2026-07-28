@@ -6,9 +6,9 @@ import (
 )
 
 type MonitorState struct {
-	Running   bool
-	StartTime time.Time
-	Notified  bool
+	Running   bool      `json:"running"`
+	StartTime time.Time `json:"start_time"`
+	Notified  bool      `json:"notified"`
 }
 
 type Monitor struct {
