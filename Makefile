@@ -27,13 +27,29 @@ clean:
 	rm -f $(BINARY)
 
 docker:
+	@if ! command -v docker >/dev/null; then \
+		echo "Docker is not installed."; \
+		exit 1; \
+	fi
 	docker compose build
 
 deploy:
+	@if ! command -v docker >/dev/null; then \
+		echo "Docker is not installed."; \
+		exit 1; \
+	fi
 	docker compose up -d --build
 
 logs:
+	@if ! command -v docker >/dev/null; then \
+		echo "Docker is not installed."; \
+		exit 1; \
+	fi
 	docker compose logs -f
 
 status:
+	@if ! command -v docker >/dev/null; then \
+		echo "Docker is not installed."; \
+		exit 1; \
+	fi
 	docker compose ps
