@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 )
@@ -33,40 +34,45 @@ func (h *Handler) Power(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("Received power: %.2f W", request.Power)
+
 	now := time.Now()
 
 	shouldNotify := false
 	runningTime := time.Duration(0)
 
-	//
-	// Only state manipulation happens inside the lock
-	//
 	h.Monitor.mu.Lock()
 
 	if request.Power <= 0 {
 
-		// Appliance stopped
+		log.Println("Appliance stopped")
+
 		h.Monitor.State.Running = false
 		h.Monitor.State.StartTime = time.Time{}
 		h.Monitor.State.Notified = false
 
 	} else {
 
-		// First time seeing power
 		if !h.Monitor.State.Running {
+
+			log.Println("Appliance started")
 
 			h.Monitor.State.Running = true
 			h.Monitor.State.StartTime = now
 			h.Monitor.State.Notified = false
 		}
 
-		// Check if running too long
 		if h.Monitor.State.Running &&
 			!h.Monitor.State.Notified {
 
 			runningTime = now.Sub(h.Monitor.State.StartTime)
 
 			if runningTime >= h.Config.Threshold {
+
+				log.Printf(
+					"Threshold exceeded after %v",
+					runningTime.Round(time.Second),
+				)
 
 				h.Monitor.State.Notified = true
 				shouldNotify = true
@@ -78,20 +84,14 @@ func (h *Handler) Power(w http.ResponseWriter, r *http.Request) {
 
 	h.Monitor.mu.Unlock()
 
-	//
-	// External calls happen AFTER unlocking
-	//
 	if shouldNotify {
-
 		go NotifyHA(
 			h.Config.Webhook,
 			runningTime,
 		)
-
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	json.NewEncoder(w).Encode(currentState)
 }
 
