@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"time"
 )
 
 type PowerRequest struct {
@@ -16,91 +15,72 @@ type Handler struct {
 	Config  Config
 }
 
-func NewHandler(monitor *Monitor, config Config) *Handler {
+func NewHandler(
+	monitor *Monitor,
+	config Config,
+) *Handler {
+
 	return &Handler{
 		Monitor: monitor,
 		Config:  config,
 	}
 }
 
-func (h *Handler) Power(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Power(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 
 	var request PowerRequest
 
-	err := json.NewDecoder(r.Body).Decode(&request)
-
-	if err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(
+			w,
+			"invalid json",
+			http.StatusBadRequest,
+		)
 		return
 	}
 
-	log.Printf("Received power: %.2f W", request.Power)
+	log.Printf("Power: %.2f W", request.Power)
 
-	now := time.Now()
+	state, notify, runtime := h.Monitor.Update(
+		request.Power,
+		h.Config.Threshold,
+	)
 
-	shouldNotify := false
-	runningTime := time.Duration(0)
+	if notify {
 
-	h.Monitor.mu.Lock()
+		log.Printf(
+			"Threshold exceeded after %v",
+			runtime.Round(0),
+		)
 
-	if request.Power <= 0 {
-
-		log.Println("Appliance stopped")
-
-		h.Monitor.State.Running = false
-		h.Monitor.State.StartTime = time.Time{}
-		h.Monitor.State.Notified = false
-
-	} else {
-
-		if !h.Monitor.State.Running {
-
-			log.Println("Appliance started")
-
-			h.Monitor.State.Running = true
-			h.Monitor.State.StartTime = now
-			h.Monitor.State.Notified = false
-		}
-
-		if h.Monitor.State.Running &&
-			!h.Monitor.State.Notified {
-
-			runningTime = now.Sub(h.Monitor.State.StartTime)
-
-			if runningTime >= h.Config.Threshold {
-
-				log.Printf(
-					"Threshold exceeded after %v",
-					runningTime.Round(time.Second),
-				)
-
-				h.Monitor.State.Notified = true
-				shouldNotify = true
-			}
-		}
-	}
-
-	currentState := h.Monitor.State
-
-	h.Monitor.mu.Unlock()
-
-	if shouldNotify {
 		go NotifyHA(
 			h.Config.Webhook,
-			runningTime,
+			runtime,
 		)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(currentState)
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	json.NewEncoder(w).Encode(state)
 }
 
-func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Status(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 
-	h.Monitor.mu.Lock()
-	defer h.Monitor.mu.Unlock()
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
 
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewEncoder(w).Encode(h.Monitor.State)
+	json.NewEncoder(w).Encode(
+		h.Monitor.GetState(),
+	)
 }
