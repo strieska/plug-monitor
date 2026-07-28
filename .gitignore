@@ -1,6 +1,7 @@
 # Go binaries
 *.exe
 *.out
+/server
 
 # Build output
 /bin/
@@ -14,3 +15,5 @@
 
 # Logs
 *.log
+
+.env
